@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2015", "DOM"],
+    "noImplicitAny": true,
+    "strict": true,
+    "outDir": "./dist",
+    "declaration": true
+  },
+  "include": [
+    "./src/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.d.ts"
+  ]
+}
