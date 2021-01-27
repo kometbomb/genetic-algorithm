@@ -4,3 +4,5 @@ src
 tsconfig.json
 jest.config.js
 dist/examples
+.github
+*.tgz
