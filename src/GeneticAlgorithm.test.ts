@@ -30,6 +30,17 @@ describe("GeneticAlgorithm", () => {
         new Error("fitnessFunction should return as many fitness values as there are input genotypes."),
       );
     });
+
+    it("throws if fitness was not calculated for any genotype before calling bestRanked()", async () => {
+      const dummyConfig: GeneticAlgorithmConfig<number> = {
+        populationSize: 3,
+        fitnessFunction: (genotypes: number[]) => Promise.resolve(new Array(genotypes.length).fill(null)),
+        mutationFunction: () => 0,
+      };
+      await expect(new GeneticAlgorithm(dummyConfig, [undefined, undefined]).bestScore()).rejects.toEqual(
+        new Error("Could not find genotypes with a calculated fitness value - did you run .evolve() yet?"),
+      );
+    });
   });
 
   describe("Configuration", () => {
