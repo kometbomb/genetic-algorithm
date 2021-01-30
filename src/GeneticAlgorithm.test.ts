@@ -120,4 +120,21 @@ describe("GeneticAlgorithm", () => {
       expect(dummyConfig.crossoverFunction).toHaveBeenCalled();
     });
   });
+
+  describe("Algorithm", () => {
+    it("evolves towards best fitness", async () => {
+      const target = 100;
+      const algorithm = new GeneticAlgorithm<number>({
+        populationSize: 10,
+        fitnessFunction: async (genotypes: number[]): Promise<number[]> => Promise.resolve(genotypes.map(genotype => 1 - Math.abs(target - genotype) / target)),
+        mutationFunction: (genotype: number): number => genotype + Math.random() * 10 - 5,
+        crossoverFunction: (a: number, b: number) => (a + b) / 2,
+      }, new Array<number>(10).fill(0));
+      for (let i = 0; i < 200; ++i) {
+        await algorithm.evolve();
+      }
+      expect(await algorithm.meanFitness()).toBeCloseTo(1.0);
+      expect(await algorithm.best()).toBeCloseTo(target);
+    });
+  })
 });
