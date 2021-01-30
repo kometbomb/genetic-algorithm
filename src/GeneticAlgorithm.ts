@@ -7,6 +7,11 @@ export interface GeneticAlgorithmConfig<Genotype> {
    * A value between 0 and 1. Affects the probability of mutation vs. crossover.
    */
   crossoverProbability?: number;
+  /**
+   * A value between 0 and 1. This is the ratio of the best genomes to be preserved in the next generation.
+   * Default is 0.25 (25 % of top population will be kept).
+   */
+  elitistRatio?: number;
 
   /**
    * Zero fitness values before each generation. Use when will change randomly.
@@ -116,7 +121,6 @@ export class GeneticAlgorithm<Genotype = any> {
 
   private compete = async () => {
     const crossoverProbability = this.config.crossoverProbability !== undefined ? this.config.crossoverProbability : 0.5;
-    const nextGeneration: PossiblyRankedGenotype<Genotype>[] = [];
 
     let rankedPopulation: (RankedGenotype<Genotype> & { accumulatedFitness: number; })[] =
       (await this.getRankedPopulation(!!this.config.recalculateFitnessBeforeEachGeneration))
@@ -129,6 +133,9 @@ export class GeneticAlgorithm<Genotype = any> {
       accumulatedFitness += genotype.fitness / total;
       return { ...genotype, accumulatedFitness };
     });
+
+    const elitistRatio = this.config.elitistRatio !== undefined ? this.config.elitistRatio : 0.25;
+    const nextGeneration: PossiblyRankedGenotype<Genotype>[] = rankedPopulation.slice(0, this.config.populationSize * elitistRatio);
 
     const getRandomParent = () => {
       const r = Math.random();
@@ -144,13 +151,8 @@ export class GeneticAlgorithm<Genotype = any> {
 
       if (this.config.crossoverFunction && Math.random() < crossoverProbability) {
         const b = getRandomParent();
-        // Elitism - keep the originals
-        nextGeneration.push(a);
-        nextGeneration.push(b);
         nextGeneration.push({ genotype: this.crossover(a.genotype, b.genotype), fitness: null });
       } else {
-        // Elitism - keep the original
-        nextGeneration.push(a);
         nextGeneration.push({ genotype: this.mutate(a.genotype), fitness: null });
       }
     }
