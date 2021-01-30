@@ -22,6 +22,9 @@ export interface GeneticAlgorithmConfig<Genotype> {
    * This function will be called at random times when calling the class methods and it does cache the already
    * known fitness values.
    *
+   * Note: Negative values are considered invalid/unfavorable and will not be guarantee to the genotype to be
+   * selected for next generation.
+   *
    * @param genotypes Incoming genotypes.
    * @returns The fitness values in the same order as the input genotypes.
    */
