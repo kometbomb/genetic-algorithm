@@ -90,16 +90,10 @@ describe("GeneticAlgorithm", () => {
       fitnessFunction: jest.fn((genotypes: number[]) => Promise.resolve(new Array(genotypes.length).fill(0))),
       mutationFunction: jest.fn((n: number) => n),
       crossoverFunction: jest.fn(() => 0),
-      doesAbeatB: jest.fn(() => true),
     };
 
     beforeEach(() => jest.clearAllMocks());
 
-    it("calls doesAbeatB", async () => {
-      const algorithm = new GeneticAlgorithm<number>(dummyConfig, new Array(100).fill(0));
-      await algorithm.evolve();
-      expect(dummyConfig.doesAbeatB).toHaveBeenCalled();
-    });
     it("calls mutationFunction", async () => {
       const algorithm = new GeneticAlgorithm<number>(dummyConfig, new Array(100).fill(0));
       // Ensure crossover probability is 0 %
@@ -123,18 +117,18 @@ describe("GeneticAlgorithm", () => {
 
   describe("Algorithm", () => {
     it("evolves towards best fitness", async () => {
-      const target = 100;
+      const target = 10;
       const algorithm = new GeneticAlgorithm<number>({
-        populationSize: 10,
-        fitnessFunction: async (genotypes: number[]): Promise<number[]> => Promise.resolve(genotypes.map(genotype => 1 - Math.abs(target - genotype) / target)),
-        mutationFunction: (genotype: number): number => genotype + Math.random() * 10 - 5,
+        populationSize: 100,
+        fitnessFunction: async (genotypes: number[]) => Promise.resolve(genotypes.map(genotype => 1 / (Math.abs(target - genotype) + 1))),
+        mutationFunction: (genotype: number) => genotype + Math.random() * 10 - 5,
         crossoverFunction: (a: number, b: number) => (a + b) / 2,
-      }, new Array<number>(10).fill(0));
-      for (let i = 0; i < 200; ++i) {
+        crossoverProbability: .2,
+      }, new Array<number>(5).fill(0));
+      for (let i = 0; i < 20; ++i) {
         await algorithm.evolve();
       }
-      expect(await algorithm.meanFitness()).toBeCloseTo(1.0);
-      expect(await algorithm.best()).toBeCloseTo(target);
+      expect(await algorithm.best()).toBeCloseTo(target, 1);
     });
   })
 });
