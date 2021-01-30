@@ -82,8 +82,8 @@ export class GeneticAlgorithm<Genotype = any> {
   }
 
   private setConfig = (config: GeneticAlgorithmConfig<Genotype>) => {
-    if (config.populationSize < 1) {
-      throw new Error("populationSize has to be greater than zero.")
+    if (config.populationSize < 2) {
+      throw new Error("populationSize has to be greater than one.")
     }
 
     this.config = { ...config };

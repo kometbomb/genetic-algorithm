@@ -11,9 +11,9 @@ describe("GeneticAlgorithm", () => {
       expect(() => new GeneticAlgorithm(dummyConfig, [])).toThrow();
     });
 
-    it("throws if population size parameter is not greater than zero", () => {
+    it("throws if population size parameter is not greater than one", () => {
       const dummyConfig: GeneticAlgorithmConfig<undefined> = {
-        populationSize: 0,
+        populationSize: 1,
         fitnessFunction: () => Promise.resolve([0]),
         mutationFunction: () => undefined,
       };
