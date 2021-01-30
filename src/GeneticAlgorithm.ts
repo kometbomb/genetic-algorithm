@@ -115,22 +115,21 @@ export class GeneticAlgorithm<Genotype = any> {
     const crossoverProbability = this.config.crossoverProbability !== undefined ? this.config.crossoverProbability : 0.5;
     const nextGeneration: PossiblyRankedGenotype<Genotype>[] = [];
 
-    let rankedPopulation: (RankedGenotype<Genotype> & { accumulated: number; })[] =
+    let rankedPopulation: (RankedGenotype<Genotype> & { accumulatedFitness: number; })[] =
       (await this.getRankedPopulation(!!this.config.recalculateFitnessBeforeEachGeneration))
-      .map(item => ({ ...item, accumulated: 0 }));
+      .map(item => ({ ...item, accumulatedFitness: 0 }));
     rankedPopulation.sort((a, b) => b.fitness - a.fitness);
     const total = rankedPopulation.reduce((prev, curr) => prev + curr.fitness, 0) || 1;
-    let acc = 0;
+    let accumulatedFitness = 0;
 
     rankedPopulation = rankedPopulation.map((genotype) => {
-      acc += genotype.fitness / total;
-      const result = { ...genotype, accumulated: acc };
-      return result;
+      accumulatedFitness += genotype.fitness / total;
+      return { ...genotype, accumulatedFitness };
     });
 
     const getRandomParent = () => {
       const r = Math.random();
-      const genotype = rankedPopulation.find(genotype => genotype.accumulated >= r);
+      const genotype = rankedPopulation.find(genotype => genotype.accumulatedFitness >= r);
       if (!genotype) {
         return rankedPopulation[Math.floor(Math.random() * rankedPopulation.length)];
       }
@@ -142,15 +141,18 @@ export class GeneticAlgorithm<Genotype = any> {
 
       if (this.config.crossoverFunction && Math.random() < crossoverProbability) {
         const b = getRandomParent();
+        // Elitism - keep the originals
         nextGeneration.push(a);
         nextGeneration.push(b);
         nextGeneration.push({ genotype: this.crossover(a.genotype, b.genotype), fitness: null });
       } else {
+        // Elitism - keep the original
         nextGeneration.push(a);
         nextGeneration.push({ genotype: this.mutate(a.genotype), fitness: null });
       }
     }
 
+    // Cull back to populationSize
     this.population = nextGeneration.slice(0, this.config.populationSize);
   }
 
