@@ -91,8 +91,8 @@ export class GeneticAlgorithm<Genotype = any> {
   }
 
   private getRankedPopulation = async (): Promise<RankedGenotype<Genotype>[]> => {
-    const hasNoFitness: PossiblyRankedGenotype<Genotype>[] = this.population.filter(ranked => ranked.fitness === null);
-    const hasFitness: RankedGenotype<Genotype>[] = this.population.filter((ranked): ranked is RankedGenotype<Genotype> => ranked.fitness !== null);
+    const hasNoFitness: PossiblyRankedGenotype<Genotype>[] = this.population.filter(ranked => typeof ranked.fitness !== "number");
+    const hasFitness: RankedGenotype<Genotype>[] = this.population.filter((ranked): ranked is RankedGenotype<Genotype> => typeof ranked.fitness === "number");
     const fitness = await this.config.fitnessFunction(hasNoFitness.map(ranked => ranked.genotype));
 
     if (fitness.length !== hasNoFitness.length) {
@@ -179,7 +179,11 @@ export class GeneticAlgorithm<Genotype = any> {
    * @returns The best ranked genotype with fitness value.
    */
   public bestRanked = async (): Promise<RankedGenotype<Genotype>> => {
-    const ranked = (await this.getRankedPopulation()).filter((ranked): ranked is RankedGenotype<Genotype> => ranked.fitness !== null);
+    const ranked = (await this.getRankedPopulation()).filter((ranked): ranked is RankedGenotype<Genotype> => typeof ranked.fitness === "number");
+
+    if (ranked.length === 0) {
+      throw new Error("Could not find genotypes with a calculated fitness value - did you run .evolve() yet?");
+    }
 
     return ranked.sort((a, b) => b.fitness - a.fitness)[0];
   }
