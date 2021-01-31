@@ -90,6 +90,10 @@ export class GeneticAlgorithm<Genotype = any> {
       throw new Error("populationSize has to be greater than one.")
     }
 
+    if (config.elitistRatio !== undefined && !(config.elitistRatio >= 0 && config.elitistRatio <= 1)) {
+      throw new Error("elititstRatio has to be between 0.0 and 1.0.")
+    }
+
     this.config = { ...config };
     return config;
   }
