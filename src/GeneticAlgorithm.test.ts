@@ -50,12 +50,37 @@ describe("GeneticAlgorithm", () => {
       mutationFunction: jest.fn((n: number) => n),
       crossoverFunction: jest.fn(() => 0),
     };
+
+    beforeEach(() => jest.clearAllMocks());
+
     it("should change configuration on the fly", async () => {
-      const algorithm = await new GeneticAlgorithm<number>(dummyConfig, [1]);
+      expect.assertions(2);
+      const algorithm = new GeneticAlgorithm<number>(dummyConfig, [1]);
       await algorithm.evolve();
       expect(algorithm.getPopulation().length).toBe(4);
       await algorithm.evolve({ ...dummyConfig, populationSize: 10 });
       expect(algorithm.getPopulation().length).toBe(10);
+    });
+
+    it("should recalculate fitness if recalculateFitnessBeforeEachGeneration is set", async () => {
+      expect.assertions(2);
+      {
+        const algorithm = new GeneticAlgorithm<number>({ ...dummyConfig, recalculateFitnessBeforeEachGeneration: false }, [1, 1, 1, 1]);
+        await algorithm.evolve();
+        await algorithm.evolve();
+        await algorithm.evolve();
+        expect(dummyConfig.fitnessFunction).toHaveBeenCalledTimes(1);
+      }
+
+      jest.clearAllMocks();
+
+      {
+        const algorithm = new GeneticAlgorithm<number>({ ...dummyConfig, recalculateFitnessBeforeEachGeneration: true }, [1, 1, 1, 1]);
+        await algorithm.evolve();
+        await algorithm.evolve();
+        await algorithm.evolve();
+        expect(dummyConfig.fitnessFunction).toHaveBeenCalledTimes(3);
+      }
     })
   });
 
