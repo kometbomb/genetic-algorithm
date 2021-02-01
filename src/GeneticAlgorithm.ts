@@ -9,6 +9,11 @@ export interface GeneticAlgorithmConfig<Genotype> {
   crossoverProbability?: number;
 
   /**
+   * Zero fitness values before each generation. Use when will change randomly.
+   */
+  recalculateFitnessBeforeEachGeneration?: boolean;
+
+  /**
    * Callback functions
    */
 
@@ -90,20 +95,25 @@ export class GeneticAlgorithm<Genotype = any> {
     return config;
   }
 
-  private getRankedPopulation = async (): Promise<RankedGenotype<Genotype>[]> => {
-    const hasNoFitness: PossiblyRankedGenotype<Genotype>[] = this.population.filter(ranked => typeof ranked.fitness !== "number");
-    const hasFitness: RankedGenotype<Genotype>[] = this.population.filter((ranked): ranked is RankedGenotype<Genotype> => typeof ranked.fitness === "number");
-    const fitness = await this.config.fitnessFunction(hasNoFitness.map(ranked => ranked.genotype));
+  private getRankedPopulation = async (recalculateFitness = false): Promise<RankedGenotype<Genotype>[]> => {
+    const hasNoFitness: PossiblyRankedGenotype<Genotype>[] = this.population.filter(ranked => typeof ranked.fitness !== "number" || recalculateFitness);
+    const hasFitness: RankedGenotype<Genotype>[] = this.population.filter((ranked): ranked is RankedGenotype<Genotype> => typeof ranked.fitness === "number" && !recalculateFitness);
 
-    if (fitness.length !== hasNoFitness.length) {
-      throw new Error("fitnessFunction should return as many fitness values as there are input genotypes.");
+    if (hasNoFitness.length > 0) {
+      const fitness = await this.config.fitnessFunction(hasNoFitness.map(ranked => ranked.genotype));
+
+      if (fitness.length !== hasNoFitness.length) {
+        throw new Error("fitnessFunction should return as many fitness values as there are input genotypes.");
+      }
+
+      // Update the internal population to keep the already calculated fitness values cached
+
+      const rankedPopulation = hasNoFitness.map((ranked, index) => ({ genotype: ranked.genotype, fitness: fitness[index] })).concat(hasFitness);
+      this.population = rankedPopulation;
+      return rankedPopulation;
     }
 
-    // Update the internal population to keep the already calculated fitness values cached
-
-    const rankedPopulation = hasNoFitness.map((ranked, index) => ({ genotype: ranked.genotype, fitness: fitness[index] })).concat(hasFitness);
-    this.population = rankedPopulation;
-    return rankedPopulation;
+    return hasFitness;
   }
 
   private static defaultDoesABeatB = (a: DefinitelyRanked, b: DefinitelyRanked) => a.fitness > b.fitness;
@@ -172,7 +182,7 @@ export class GeneticAlgorithm<Genotype = any> {
     }
     this.populate();
     this.shufflePopulation();
-    this.compete(await this.getRankedPopulation());
+    this.compete(await this.getRankedPopulation(!!this.config.recalculateFitnessBeforeEachGeneration));
   }
 
   /**
