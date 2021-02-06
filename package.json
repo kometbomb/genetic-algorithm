@@ -1,6 +1,6 @@
 {
   "name": "@kometbomb/genetic-algorithm",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Simple genetic algorithm helper class. Supports asynchronous fitness evaluation.",
   "keywords": ["genetic-algorithm", "hill-climb", "genetic", "algorithm", "optimization"],
   "scripts": {

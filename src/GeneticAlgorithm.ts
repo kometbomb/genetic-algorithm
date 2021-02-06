@@ -7,6 +7,11 @@ export interface GeneticAlgorithmConfig<Genotype> {
    * A value between 0 and 1. Affects the probability of mutation vs. crossover.
    */
   crossoverProbability?: number;
+  /**
+   * A value between 0 and 1. This is the ratio of the best genomes to be preserved in the next generation.
+   * Default is 0.25 (25 % of top population will be kept).
+   */
+  elitistRatio?: number;
 
   /**
    * Zero fitness values before each generation. Use when will change randomly.
@@ -21,6 +26,9 @@ export interface GeneticAlgorithmConfig<Genotype> {
    * Calculate the fitness for genotypes. This can be used to split the workload between mutliple threads.
    * This function will be called at random times when calling the class methods and it does cache the already
    * known fitness values.
+   *
+   * Note: Negative values are considered invalid/unfavorable and will not be guarantee to the genotype to be
+   * selected for next generation.
    *
    * @param genotypes Incoming genotypes.
    * @returns The fitness values in the same order as the input genotypes.
@@ -41,15 +49,6 @@ export interface GeneticAlgorithmConfig<Genotype> {
    * @returns A new genotype with features of both A and B
    */
   crossoverFunction?(a: Readonly<Genotype>, b: Readonly<Genotype>): Genotype;
-  /**
-   * This can be used to replace the built-in comparison. The incoming values are the
-   * genotype and the previously calculated fitness value. Optional.
-   *
-   * @param a Compared genotype a
-   * @param b Compared genotype b
-   * @returns Return boolean whether the fitness of a is considered better than b
-   */
-  doesAbeatB?(a: RankedGenotype<Genotype>, b: RankedGenotype<Genotype>): boolean;
 }
 
 interface Rank {
@@ -91,6 +90,10 @@ export class GeneticAlgorithm<Genotype = any> {
       throw new Error("populationSize has to be greater than one.")
     }
 
+    if (config.elitistRatio !== undefined && !(config.elitistRatio >= 0 && config.elitistRatio <= 1)) {
+      throw new Error("elititstRatio has to be between 0.0 and 1.0.")
+    }
+
     this.config = { ...config };
     return config;
   }
@@ -116,36 +119,50 @@ export class GeneticAlgorithm<Genotype = any> {
     return hasFitness;
   }
 
-  private static defaultDoesABeatB = (a: DefinitelyRanked, b: DefinitelyRanked) => a.fitness > b.fitness;
-
-  private crossover = (phenotype: Genotype): Genotype => {
-    const mate = this.population[Math.floor(Math.random() * this.population.length)];
-    return this.config.crossoverFunction!(phenotype, mate.genotype);
+  private crossover = (phenotype: Genotype, mate: Genotype): Genotype => {
+    return this.config.crossoverFunction!(phenotype, mate);
   }
 
-  private compete = (rankedPopulation: RankedGenotype<Genotype>[]) => {
-    const nextGeneration: PossiblyRankedGenotype<Genotype>[] = [];
-    const compare = this.config.doesAbeatB || GeneticAlgorithm.defaultDoesABeatB;
+  private compete = async () => {
     const crossoverProbability = this.config.crossoverProbability !== undefined ? this.config.crossoverProbability : 0.5;
 
-    for (let p = 0; p < rankedPopulation.length - 1; p += 2) {
-      const phenotype = rankedPopulation[p];
-      const competitor = rankedPopulation[p + 1];
+    let rankedPopulation: (RankedGenotype<Genotype> & { accumulatedFitness: number; })[] =
+      (await this.getRankedPopulation(!!this.config.recalculateFitnessBeforeEachGeneration))
+      .map(item => ({ ...item, accumulatedFitness: 0 }));
+    rankedPopulation.sort((a, b) => b.fitness - a.fitness);
+    const total = rankedPopulation.reduce((prev, curr) => prev + curr.fitness, 0) || 1;
+    let accumulatedFitness = 0;
 
-      nextGeneration.push(phenotype);
+    rankedPopulation = rankedPopulation.map((genotype) => {
+      accumulatedFitness += genotype.fitness / total;
+      return { ...genotype, accumulatedFitness };
+    });
 
-      if (compare(phenotype, competitor)) {
-        if (!this.config.crossoverFunction || Math.random() > crossoverProbability) {
-          nextGeneration.push({ genotype: this.mutate(phenotype.genotype), fitness: null });
-        } else {
-          nextGeneration.push({ genotype: this.crossover(phenotype.genotype), fitness: null });
-        }
+    const elitistRatio = this.config.elitistRatio !== undefined ? this.config.elitistRatio : 0.25;
+    const nextGeneration: PossiblyRankedGenotype<Genotype>[] = rankedPopulation.slice(0, this.config.populationSize * elitistRatio);
+
+    const getRandomParent = () => {
+      const r = Math.random();
+      const genotype = rankedPopulation.find(genotype => genotype.accumulatedFitness >= r);
+      if (!genotype) {
+        return rankedPopulation[Math.floor(Math.random() * rankedPopulation.length)];
+      }
+      return genotype;
+    }
+
+    while (nextGeneration.length < this.config.populationSize) {
+      const a = getRandomParent();
+
+      if (this.config.crossoverFunction && Math.random() < crossoverProbability) {
+        const b = getRandomParent();
+        nextGeneration.push({ genotype: this.crossover(a.genotype, b.genotype), fitness: null });
       } else {
-        nextGeneration.push(competitor);
+        nextGeneration.push({ genotype: this.mutate(a.genotype), fitness: null });
       }
     }
 
-    this.population = nextGeneration;
+    // Cull back to populationSize
+    this.population = nextGeneration.slice(0, this.config.populationSize);
   }
 
   private mutate = (genotype: Readonly<Genotype>): Genotype => {
@@ -162,15 +179,6 @@ export class GeneticAlgorithm<Genotype = any> {
     }
   }
 
-  private shufflePopulation = () => {
-    for (let index = 0; index < this.population.length; ++index) {
-      const other = Math.floor(this.population.length * Math.random());
-      const [a, b] = [this.population[index], this.population[other]];
-      this.population[index] = b;
-      this.population[other] = a;
-    }
-  }
-
   /**
    * Run for one generation.
    *
@@ -181,8 +189,7 @@ export class GeneticAlgorithm<Genotype = any> {
       this.setConfig(config);
     }
     this.populate();
-    this.shufflePopulation();
-    this.compete(await this.getRankedPopulation(!!this.config.recalculateFitnessBeforeEachGeneration));
+    await this.compete();
   }
 
   /**

@@ -17,7 +17,17 @@ describe("GeneticAlgorithm", () => {
         fitnessFunction: () => Promise.resolve([0]),
         mutationFunction: () => undefined,
       };
-      expect(() => new GeneticAlgorithm(dummyConfig, [undefined])).toThrow();
+      expect(() => new GeneticAlgorithm(dummyConfig, [undefined])).toThrow(new Error("populationSize has to be greater than one."));
+    });
+
+    it("throws if elitistRatio is not between 0.0 and 1.0", async () => {
+      const dummyConfig: GeneticAlgorithmConfig<number> = {
+        populationSize: 3,
+        elitistRatio: -1,
+        fitnessFunction: (genotypes: number[]) => Promise.resolve(new Array(genotypes.length).fill(null)),
+        mutationFunction: () => 0,
+      };
+      await expect(() => new GeneticAlgorithm(dummyConfig, [undefined, undefined])).toThrow(new Error("elititstRatio has to be between 0.0 and 1.0."));
     });
 
     it("throws if fitness function doesn't return the same count of fitness values as input genotypes", async () => {
@@ -64,8 +74,11 @@ describe("GeneticAlgorithm", () => {
 
     it("should recalculate fitness if recalculateFitnessBeforeEachGeneration is set", async () => {
       expect.assertions(2);
+
+      // Use elitistRatio = 1.0 to ensure no new genotypes are introduced - this would lead into fitnessFunction being called in any case.
+
       {
-        const algorithm = new GeneticAlgorithm<number>({ ...dummyConfig, recalculateFitnessBeforeEachGeneration: false }, [1, 1, 1, 1]);
+        const algorithm = new GeneticAlgorithm<number>({ ...dummyConfig, elitistRatio: 1.0, recalculateFitnessBeforeEachGeneration: false }, [1, 1, 1, 1]);
         await algorithm.evolve();
         await algorithm.evolve();
         await algorithm.evolve();
@@ -75,7 +88,7 @@ describe("GeneticAlgorithm", () => {
       jest.clearAllMocks();
 
       {
-        const algorithm = new GeneticAlgorithm<number>({ ...dummyConfig, recalculateFitnessBeforeEachGeneration: true }, [1, 1, 1, 1]);
+        const algorithm = new GeneticAlgorithm<number>({ ...dummyConfig, elitistRatio: 1.0, recalculateFitnessBeforeEachGeneration: true }, [1, 1, 1, 1]);
         await algorithm.evolve();
         await algorithm.evolve();
         await algorithm.evolve();
@@ -90,16 +103,10 @@ describe("GeneticAlgorithm", () => {
       fitnessFunction: jest.fn((genotypes: number[]) => Promise.resolve(new Array(genotypes.length).fill(0))),
       mutationFunction: jest.fn((n: number) => n),
       crossoverFunction: jest.fn(() => 0),
-      doesAbeatB: jest.fn(() => true),
     };
 
     beforeEach(() => jest.clearAllMocks());
 
-    it("calls doesAbeatB", async () => {
-      const algorithm = new GeneticAlgorithm<number>(dummyConfig, new Array(100).fill(0));
-      await algorithm.evolve();
-      expect(dummyConfig.doesAbeatB).toHaveBeenCalled();
-    });
     it("calls mutationFunction", async () => {
       const algorithm = new GeneticAlgorithm<number>(dummyConfig, new Array(100).fill(0));
       // Ensure crossover probability is 0 %
@@ -120,4 +127,21 @@ describe("GeneticAlgorithm", () => {
       expect(dummyConfig.crossoverFunction).toHaveBeenCalled();
     });
   });
+
+  describe("Algorithm", () => {
+    it("evolves towards best fitness", async () => {
+      const target = 10;
+      const algorithm = new GeneticAlgorithm<number>({
+        populationSize: 100,
+        fitnessFunction: async (genotypes: number[]) => Promise.resolve(genotypes.map(genotype => 1 / (Math.abs(target - genotype) + 1))),
+        mutationFunction: (genotype: number) => genotype + Math.random() * 10 - 5,
+        crossoverFunction: (a: number, b: number) => (a + b) / 2,
+        crossoverProbability: .2,
+      }, new Array<number>(5).fill(0));
+      for (let i = 0; i < 20; ++i) {
+        await algorithm.evolve();
+      }
+      expect(await algorithm.best()).toBeCloseTo(target, 1);
+    });
+  })
 });
