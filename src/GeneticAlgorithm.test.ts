@@ -119,6 +119,27 @@ describe("GeneticAlgorithm", () => {
       await algorithm.evolve();
       expect(dummyConfig.fitnessFunction).toHaveBeenLastCalledWith(new Array(100).fill(0));
     });
+    it("reuses fitness values if genotype was not changed", async () => {
+      expect.assertions(6);
+      const algorithm = new GeneticAlgorithm<number>({ ...dummyConfig, populationSize: 5, crossoverProbability: 0.0, elitistRatio: 0.4 }, new Array(5).fill(0));
+      await algorithm.evolve();
+      expect(dummyConfig.fitnessFunction).toHaveBeenLastCalledWith([0, 0, 0, 0, 0]);
+      // Should always keep two best values intact and call fitnessFunction for the new three values (elitistRatio = 40 %)
+      await algorithm.evolve();
+      expect(dummyConfig.fitnessFunction).toHaveBeenLastCalledWith([0, 0, 0]);
+      await algorithm.evolve();
+      expect(dummyConfig.fitnessFunction).toHaveBeenLastCalledWith([0, 0, 0]);
+      expect(dummyConfig.fitnessFunction).toBeCalledTimes(3);
+
+      // .best() should reuse the fitness values as the genomes are not changed
+      await algorithm.best();
+      await algorithm.best();
+      expect(dummyConfig.fitnessFunction).toBeCalledTimes(4);
+
+      // .evolve should have the same fitness values from earlier
+      await algorithm.evolve();
+      expect(dummyConfig.fitnessFunction).toBeCalledTimes(4);
+    });
     it("calls crossoverFunction", async () => {
       const algorithm = new GeneticAlgorithm<number>(dummyConfig, new Array(100).fill(0));
       // Ensure crossover probability is 100 %
